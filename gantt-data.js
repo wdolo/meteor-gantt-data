@@ -2,6 +2,7 @@ var gObserversCollection = null,
     gEventsCollection = null;
 
 function meteorStart(collections) {
+    Session.set('ganttReady', false);
     gObserversCollection = new DataCollection();
     gEventsCollection = new DataCollection();
 
@@ -19,27 +20,45 @@ function meteorStart(collections) {
         collectionsCursors["links"] = collections["links"].find();
     }
 
+
+    var collection = {
+        data: collectionsCursors["tasks"].fetch().map(function (task) {return parseItemData(task)}),
+        links: collectionsCursors["links"].fetch()
+    };
+
+    console.log(collection);
+
+    gantt.parse(collection);
+
     initCollectionHandler(this, collections["tasks"], collectionsCursors["tasks"], "task");
     initCollectionHandler(this, collections["links"], collectionsCursors["links"], "link");
 
 }
 
 function meteorStop() {
-    gantt.clearAll();
-
     if(gObserversCollection) {
         gObserversCollection.each(function(observer) {
+            console.log(observer);
             observer.stop();
+            console.log(observer);
         });
+        gObserversCollection.clean();
     }
 
     var self = this;
     if(gEventsCollection) {
         gEventsCollection.each(function(eventId) {
+            console.log(self.detachEvent);
             self.detachEvent(eventId);
         });
         gEventsCollection.clean();
     }
+    //gantt.detachEvent("onTaskLoading");
+    //gantt.detachEvent("onAfterTaskAdd");
+    //gantt.detachEvent("onAfterTaskUpdate");
+    //gantt.detachEvent("onAfterTaskDelete");
+    gantt.clearAll();
+
 }
 
 function initCollectionHandler(gantt, collection, collectionCursor, itemType) {
@@ -48,14 +67,14 @@ function initCollectionHandler(gantt, collection, collectionCursor, itemType) {
 
     var collectionHandlerObj = new CollectionHandler(collection);
     gEventsCollection.add(gantt.attachEvent("onTaskLoading", function(task) {
-        //collectionHandlerObj.save(task);
-        console.log('loading');
+        collectionHandlerObj.save(task);
         return true;
     }));
 
     gEventsCollection.add(gantt.attachEvent(eventsNames.added, function(itemId, item) {
         console.log('adding');
         collectionHandlerObj.save(item);
+        return true;
     }));
 
     gEventsCollection.add(gantt.attachEvent(eventsNames.updated, function(itemId, item) {
@@ -71,12 +90,12 @@ function initCollectionHandler(gantt, collection, collectionCursor, itemType) {
     var methods = itemTypeSettings.methods;
     gObserversCollection.add(collectionCursor.observe({
 
-        added: function(data) {
-            var itemData = parseItemData(data);
-            gantt.render();
-            if(!methods.isExists(itemData._id))
-                methods.add(itemData);
-        },
+        //added: function(data) {
+        //    var itemData = parseItemData(data);
+        //    console.log('add');
+        //    if(!methods.isExists(itemData._id))
+        //        methods.add(itemData);
+        //},
 
         changed: function(data) {
             var itemData = parseItemData(data);
@@ -219,6 +238,7 @@ function DataCollection() {
 
     this.add = function(data) {
         var dataId = _uid();
+        collectionData;
         collectionData[dataId] = data;
         return dataId;
     };
