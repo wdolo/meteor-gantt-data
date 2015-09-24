@@ -86,9 +86,9 @@ function initCollectionHandler(gantt, collection, collectionCursor, itemType) {
         collectionHandlerObj.save(item);
     }));
 
-    gEventsCollection.add(gantt.attachEvent(eventsNames.removed, function(itemId) {
+    gEventsCollection.add(gantt.attachEvent(eventsNames.removed, function(itemId, item) {
         console.log('removing');
-        collectionHandlerObj.remove(itemId);
+        collectionHandlerObj.remove(itemId, item);
     }));
 
     var methods = itemTypeSettings.methods;
@@ -107,6 +107,8 @@ function initCollectionHandler(gantt, collection, collectionCursor, itemType) {
             if(!methods.isExists(itemData._id))
                 return false;
 
+            console.log(itemData);
+
             var item = methods.get(itemData.id);
             for(var key in itemData)
                 item[key] = itemData[key];
@@ -116,8 +118,11 @@ function initCollectionHandler(gantt, collection, collectionCursor, itemType) {
         },
 
         removed: function(data) {
-            if(methods.isExists(data._id))
+            console.log(data);
+            if(methods.isExists(data._id)) {
+                console.log('exists');
                 methods.remove(data._id);
+            }
         }
 
     })
@@ -180,7 +185,6 @@ function CollectionHandler(collection) {
         item.projectId = Session.get('projectId');
         var savedItemData = this.findItem(item._id);
 
-
         if(savedItemData){
             if (item.hasOwnProperty("text")) {
                 collection.update({_id: savedItemData._id}, {
@@ -200,14 +204,17 @@ function CollectionHandler(collection) {
                 });
             }
         }
-        else
+        else {
+            console.log(item);
+            console.log('insertting');
             collection.insert(item);
+        }
     };
 
-    this.remove = function(itemId) {
-        var savedItemData = this.findItem(itemId);
-        if(savedItemData)
-            collection.remove(savedItemData._id);
+    this.remove = function(itemId, item) {
+        console.log(item);
+        if (item)
+            collection.remove({_id:item._id});
     };
 
     this.findItem = function(itemId) {
@@ -223,10 +230,11 @@ function parseItemData(item) {
         if((itemProperty.charAt(0) == "$"))
             continue;
 
-        itemData[itemProperty] = item[itemProperty];
-
-        if(itemProperty == "_id")
-            itemData["id"] = itemData[itemProperty].toString();
+        if(itemProperty == "id") {
+            itemData["id"] = itemData["_id"];
+        } else {
+            itemData[itemProperty] = item[itemProperty];
+        }
     }
 
     return itemData;
