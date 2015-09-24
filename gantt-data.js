@@ -16,7 +16,11 @@ function meteorStart(collections) {
         collections = arguments[1];
     }
     else {
-        collectionsCursors["tasks"] = collections["tasks"].find();
+        collectionsCursors["tasks"] = collections["tasks"].find({}, {sort:{
+            start_date:1,
+            end_date: 1,
+            createdAt: 1
+        }});
         collectionsCursors["links"] = collections["links"].find();
     }
 
@@ -103,7 +107,7 @@ function initCollectionHandler(gantt, collection, collectionCursor, itemType) {
             if(!methods.isExists(itemData._id))
                 return false;
 
-            var item = methods.get(itemData._id);
+            var item = methods.get(itemData.id);
             for(var key in itemData)
                 item[key] = itemData[key];
 
