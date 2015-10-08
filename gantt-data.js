@@ -30,9 +30,9 @@ function meteorStart(collections) {
         links: collectionsCursors["links"].fetch()
     };
 
-    console.log(collection);
-
     gantt.parse(collection);
+    //gantt._init_dnd();
+    //gantt._init_dnd_events();
 
     initCollectionHandler(this, collections["tasks"], collectionsCursors["tasks"], "task", collections["links"]);
     initCollectionHandler(this, collections["links"], collectionsCursors["links"], "link");
@@ -40,6 +40,7 @@ function meteorStart(collections) {
 }
 
 function meteorStop() {
+    $("#gantt_here").remove();
     if(gObserversCollection) {
         gObserversCollection.each(function(observer) {
             console.log(observer);
@@ -72,39 +73,38 @@ function initCollectionHandler(gantt, collection, collectionCursor, itemType, li
     }));
 
     gEventsCollection.add(gantt.attachEvent(eventsNames.added, function(itemId, item) {
-        console.log('adding');
         collectionHandlerObj.save(item);
         return true;
     }));
 
-    gEventsCollection.add(gantt.attachEvent(eventsNames.updated, function(itemId, item) {
-        console.log('updating');
-
-        collectionHandlerObj.save(item);
-    }));
-
     gEventsCollection.add(gantt.attachEvent(eventsNames.removed, function(itemId, item) {
-        console.log('removing');
-        console.log(itemId);
-        console.log(item);
         collectionHandlerObj.remove(itemId, item);
     }));
 
 
     if (linksCollection) {
-        gEventsCollection.add(gantt.attachEvent("onAfterTaskDrag", function (id, e) {
+        gEventsCollection.add(gantt.attachEvent(eventsNames.updated, function(itemId, item) {
+            collectionHandlerObj.save(item);
+        }));
+
+        gEventsCollection.add(gantt.attachEvent("onAfterTaskDrag", function (id, mode,  e) {
             console.log('done dragging');
             var links, task;
+            console.log(gantt.getTask(id));
 
             links = linksCollection.find({$or:[{source:id},{target:id}]}).fetch();
             links.forEach(function (link) {
                 if (!link.linkType || link.linkType === "hard"){
                     if (link.source === id && link.target) {
                         task = gantt.getTask(link.target);
+                        console.log('over');
+                        console.log(task);
                         gantt.roundTaskDates(task);
                         gantt.updateTask(link.target);
                     } else if (link.target === id && link.source) {
                         task = gantt.getTask(link.source);
+                        console.log('over here');
+                        console.log(task);
                         gantt.roundTaskDates(task);
                         gantt.updateTask(link.source);
                     }
@@ -121,27 +121,21 @@ function initCollectionHandler(gantt, collection, collectionCursor, itemType, li
                 links = linksCollection.find({$or:[{source:copy._id},{target:copy._id}]}).fetch();
                 links.forEach(function (link) {
                     if (link && link.linkType && link.linkType === "hard") {
-                        console.log(copy);
-                        console.log(link);
                         if (link.source === copy._id && link.target) {
-                            console.log('yooo');
-                            console.log(link.target);
                             dependencies = gantt.getTask(link.target.toString());
                             if (dependencies && dependencies.start_date) {
                                 dependencies.start_date = new Date(new Date(dependencies.start_date).getTime() - diff);
                                 dependencies.end_date = new Date(new Date(dependencies.end_date).getTime() - diff);
 
                                 gantt.updateTask(link.target);
-                                //gantt.roundTaskDates(dependencies);
                             }
                         } else if (link.target === copy._id && link.source){
                             dependencies = gantt.getTask(link.source.toString());
                             if (dependencies && dependencies.start_date) {
                                 dependencies.start_date = new Date(new Date(dependencies.start_date).getTime() - diff);
                                 dependencies.end_date = new Date(new Date(dependencies.end_date).getTime() - diff);
-                                console.log('yo');
+
                                 gantt.updateTask(link.source);
-                                //gantt.roundTaskDates(dependencies);
                             }
                         }
                     }
@@ -150,21 +144,32 @@ function initCollectionHandler(gantt, collection, collectionCursor, itemType, li
         }));
     } else {
         gEventsCollection.add(gantt.attachEvent("onLinkClick", function (id, e) {
-            console.log(e);
             var link = gantt.getLink(id),
+                linkId,
                 linkType;
-            if (link.linkType && link.linkType === "hard"){
+
+            console.log('kdlsjfklsdj', link);
+            if (!link._id){
+                linkId = collection.findOne({target:link.target, source:link.source})._id;
+            } else {
+                linkId = link._id;
+            }
+
+            if (!link.linkType || link.linkType === "hard"){
+                console.log('here');
                 linkType = "soft";
                 link.linkType = linkType;
             } else {
                 linkType = "hard";
                 link.linkType = linkType;
             }
-            collection.update({_id:link._id}, {$set:{
+            var yo = collection.update({_id:linkId}, {$set:{
                 linkType: linkType
             }});
 
-            gantt.updateLink(id)
+            console.log(yo);
+
+            gantt.updateLink(id, link);
 
         }));
     }
@@ -265,9 +270,9 @@ function CollectionHandler(collection) {
         item.projectId = Session.get('projectId');
         var savedItemData = this.findItem(item._id);
 
+
         if(savedItemData){
             if (item.hasOwnProperty("text")) {
-                console.log(savedItemData);
                 collection.update({_id: savedItemData._id}, {
                     $set: {
                         text: item.text,
@@ -290,19 +295,30 @@ function CollectionHandler(collection) {
             if (item.source) {
                 item.linkType = "hard";
             }
-            console.log(item);
-            console.log('insertting');
             collection.insert(item);
         }
     };
 
     this.remove = function(itemId, item) {
-        if (item && item._id) {
+        // if it has text it is a task
+        if (item && item.text) {
+            //check for links
+            var links = LinksCollection.find({$or: [{source:item._id}, {target:item._id}]}).fetch();
+            console.log(links);
+            for (var i = 0; i < links.length; i++) {
+                this.removeLink(links[i]);
+            }
+            console.log(item);
             collection.remove({_id:item._id});
-        } else {
-            var Item = collection.findOne({source:item.source, target:item.target});
-            collection.remove({_id:Item._id});
+        } else if (item.source) {
+            this.removeLink(item);
         }
+
+    };
+
+    this.removeLink = function (link) {
+        var Item = LinksCollection.findOne({source:link.source, target:link.target});
+        LinksCollection.remove({_id:Item._id});
     };
 
     this.findItem = function(itemId) {
