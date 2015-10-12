@@ -31,6 +31,7 @@ function meteorStart(collections) {
     };
 
     gantt.parse(collection);
+    gantt.refreshData();
     //gantt._init_dnd();
     //gantt._init_dnd_events();
 
