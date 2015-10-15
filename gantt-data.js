@@ -16,12 +16,12 @@ function meteorStart(collections) {
         collections = arguments[1];
     }
     else {
-        collectionsCursors["tasks"] = collections["tasks"].find({}, {sort:{
+        collectionsCursors["tasks"] = collections["tasks"].find({projectId:Session.get('projectId')}, {sort:{
             start_date:1,
             end_date: 1,
             createdAt: 1
         }});
-        collectionsCursors["links"] = collections["links"].find();
+        collectionsCursors["links"] = collections["links"].find({projectId:Session.get('projectId')});
     }
 
 
